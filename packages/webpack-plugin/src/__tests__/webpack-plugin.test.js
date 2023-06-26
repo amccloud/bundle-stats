@@ -55,4 +55,37 @@ describe('webpack plugin', () => {
       done();
     });
   });
+
+  test('with module federation remote entry', (done) => {
+    expect.assertions(2);
+
+    const compiler = webpack(
+      merge({}, BASE_CONFIG, {
+        entry: {},
+        plugins: [
+          new BundleStatsWebpackPlugin({ baseline: true }),
+          new webpack.container.ModuleFederationPlugin({
+            name: 'app',
+            filename: 'remoteEntry.js',
+            exposes: {
+                'Index': './src/index.js'
+            },
+            // shared
+          })
+        ],
+      }),
+    );
+
+    compiler.outputFileSystem = new MemoryFS();
+    compiler.run((_, stats) => {
+      const { assets, chunks } = stats.toJson({ source: false, assets: true });
+      const remoteEntryAsset = assets.find((asset) => asset.name.match(/remoteEntry\.js$/));
+      const remoteEntryChunks = remoteEntryAsset.chunks.map((chunkId) => chunks.find(chunk => chunk.id === chunkId));
+      const remoteEntryChildren = remoteEntryChunks[0].children.map((chunkId) => chunks.find(chunk => chunk.id === chunkId));
+      const remoteEntryGrandChildren = remoteEntryChildren[0].children.map((chunkId) => chunks.find(chunk => chunk.id === chunkId));
+      expect(remoteEntryChildren[0].initial).toBeTruthy();
+      expect(remoteEntryGrandChildren[0].initial).toBeTruthy(); // Not sure?
+      done();
+    });
+  });
 });
